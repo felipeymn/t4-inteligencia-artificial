@@ -6,6 +6,8 @@ from sklearn.neural_network import MLPRegressor
 from sklearn.exceptions import ConvergenceWarning
 from base_agent import BaseAgent
 
+import random
+
 warnings.filterwarnings("ignore", category = ConvergenceWarning)
 
 class MLPQAgent(BaseAgent):
@@ -15,17 +17,20 @@ class MLPQAgent(BaseAgent):
         self.alpha = alpha
         self.epsilon = epsilon
         self.legal_actions = list(range(possible_actions))
-
-        # Utilize o dicionario networks de forma que cada indice eh representado
-        # por um valor entre 0 e possible_actions-1
-        # O dicionario devera guardar as instancias da classe MLPRegressor
-        # LEMBRE DE INSTANCIAR AS REDES EM ALGUM LUGAR
         self.networks = {}
 
+        # Valores iniciais
+        X = np.array([0, 0, 0, 0, 0, 0, 0, 0])
+        y = 0.0
+
+        # Inicia o dicionario
+        for i in range(possible_actions):
+            self.networks[i] = MLPRegressor(learning_rate_init=self.alpha, hidden_layer_sizes=(100,200))
+            self.networks[i].partial_fit([X], [y])
 
     ## NAO ALTERE OS METODOS save_snapshot e getLegalActions ##
     def save_snapshot(self, name):
-        self.snapshots[name] = {x:pickle.dumps(self.networks[x]) for x in self.networks}
+        self.snapshots[name] = {x:pickle.dumps(self.networks[x]) for x in self.networkss}
 
     def getLegalActions(self, state):
         return self.legal_actions
@@ -36,15 +41,31 @@ class MLPQAgent(BaseAgent):
         state: vetor de numeros reais
 
         retorna um valor presente na lista self.getLegalActions(state)
-        '''
-        # IMPLEMENTE AQUI O METODO PARA ESCOLHER A ACAO
+        ''' 
         actions = self.getLegalActions(state)
-        i = np.random.randint(len(actions))
-        return actions[i]
+        results = []
+        # Escolhe um valor aleatorio entre 0 e 1
+        # Caso o valor for menor que Epsilon, escolhe uma acao aleatoria
+        # Caso contrario, escolhe a melhor acao
+        if self.epsilon > random.random():
+            action = random.choice(actions)
+        else:
+            for network in self.networks.values():
+                X = state.reshape(1, -1)
+                results.append(network.predict(X))
+            action = results.index(max(results))
+        return action
+
 
     def update(self, state, action, nextState, reward):
         '''
         Atualiza a rede na posicao self.networks[action].
         '''
-        # IMPLEMENTE AQUI O METODO PARA ATUALIZAR O AGENTE
-        pass
+        results = []
+
+        for network in self.networks.values():
+            X = nextState.reshape(1, -1)
+            results.append(network.predict(X))
+        max_q = max(results)
+
+        self.networks[action].partial_fit([state], max_q * self.gamma + reward)
